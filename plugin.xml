@@ -26,6 +26,7 @@
             <merges target="cordova.plugins.screenorientation" />
         </js-module>
         <header-file src="src/ios/YoikScreenOrientation.h" />
+        <header-file src="src/ios/YoikScreenOrientation+CDVViewController.h" />
         <source-file src="src/ios/YoikScreenOrientation.m" />
     </platform>
 

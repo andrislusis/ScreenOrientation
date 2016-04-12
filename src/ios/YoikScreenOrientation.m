@@ -27,69 +27,99 @@ SOFTWARE.
 
 -(void)screenOrientation:(CDVInvokedUrlCommand *)command
 {
-    NSArray* arguments = command.arguments;
-    NSString* orientationIn = [arguments objectAtIndex:1];
+    [self.commandDelegate runInBackground:^{
 
-    // grab the device orientation so we can pass it back to the js side.
-    NSString *orientation;
-    switch ([[UIDevice currentDevice] orientation]) {
-        case UIDeviceOrientationLandscapeLeft:
-            orientation = @"landscape-secondary";
-            break;
-        case UIDeviceOrientationLandscapeRight:
-            orientation = @"landscape-primary";
-            break;
-        case UIDeviceOrientationPortrait:
-            orientation = @"portrait-primary";
-            break;
-        case UIDeviceOrientationPortraitUpsideDown:
-            orientation = @"portrait-secondary";
-            break;
-        default:
-            orientation = @"portait";
-            break;
-    }
+        NSArray* arguments = command.arguments;
+        NSString* orientationIn = [arguments objectAtIndex:1];
+        // grab the device orientation so we can pass it back to the js side.
+        NSString *orientation;
 
-    if ([orientationIn isEqual: @"unlocked"]) {
-        orientationIn = orientation;
-    }
+        switch ([[UIDevice currentDevice] orientation]) {
+            case UIDeviceOrientationLandscapeLeft:
+                orientation = @"landscape-secondary";
+                break;
+            case UIDeviceOrientationLandscapeRight:
+                orientation = @"landscape-primary";
+                break;
+            case UIDeviceOrientationPortrait:
+                orientation = @"portrait-primary";
+                break;
+            case UIDeviceOrientationPortraitUpsideDown:
+                orientation = @"portrait-secondary";
+                break;
+            default:
+                orientation = @"portait";
+                break;
+        }
 
-    // we send the result prior to the view controller presentation so that the JS side
-    // is ready for the unlock call.
-    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
-        messageAsDictionary:@{@"device":orientation}];
-    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+        /* update supportedOrientations of CDVViewController according to currently locked orientation */
+            NSMutableArray* result = [[NSMutableArray alloc] init];
 
-    // SEE https://github.com/Adlotto/cordova-plugin-recheck-screen-orientation
-    // HACK: Force rotate by changing the view hierarchy. Present modal view then dismiss it immediately
-    // This has been changed substantially since iOS8 broke it...
-    ForcedViewController *vc = [[ForcedViewController alloc] init];
-    vc.calledWith = orientationIn;
+            if ([orientationIn isEqual: @"landscape"]) {
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationLandscapeLeft]];
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationLandscapeRight]];
+            }
 
-    // backgound should be transparent as it is briefly visible
-    // prior to closing.
-    vc.view.backgroundColor = [UIColor clearColor];
-    // vc.view.alpha = 0.0;
-    vc.view.opaque = YES;
+            if ([orientationIn isEqual: @"portrait"]) {
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationPortrait]];
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationPortraitUpsideDown]];
+            }
+
+            if ([orientationIn isEqual: @"unlocked"]) {
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationLandscapeLeft]];
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationLandscapeRight]];
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationPortrait]];
+                    [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationPortraitUpsideDown]];
+            }
+
+            if ([result count] == 0) {
+                [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationPortrait]];
+            }
+
+        if (self.viewController != nil )  ((CDVViewController*)self.viewController).supportedOrientations = result;
+
+        // we send the result prior to the view controller presentation so that the JS side
+        // is ready for the unlock call.
+        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK
+            messageAsDictionary:@{@"device":orientation}];
+        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+
+        // SEE https://github.com/Adlotto/cordova-plugin-recheck-screen-orientation
+        // HACK: Force rotate by changing the view hierarchy. Present modal view then dismiss it immediately
+        // This has been changed substantially since iOS8 broke it...
+        ForcedViewController *vc = [[ForcedViewController alloc] init];
+        vc.calledWith = orientationIn;
+
+        // backgound should be transparent as it is briefly visible
+        // prior to closing.
+        vc.view.backgroundColor = [UIColor clearColor];
+        // vc.view.alpha = 0.0;
+        vc.view.opaque = YES;
 
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
-    // This stops us getting the black application background flash, iOS8
-    vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
+        // This stops us getting the black application background flash, iOS8
+        vc.modalPresentationStyle = UIModalPresentationOverFullScreen;
 #endif
-
-    [self.viewController presentViewController:vc animated:NO completion:^{
-        // added to support iOS8 beta 5, @see issue #19
-        dispatch_after(0, dispatch_get_main_queue(), ^{
-            [self.viewController dismissViewControllerAnimated:NO completion:nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.viewController presentViewController:vc animated:NO completion:^{
+                // added to support iOS8 beta 5, @see issue #19
+                dispatch_after(0, dispatch_get_main_queue(), ^{
+                    [self.viewController dismissViewControllerAnimated:NO completion:^{
+                        // fix sometimes wrong layout of the webView
+                        self.webView.frame = self.viewController.view.frame;
+//                        [self.webView setNeedsLayout];
+                    }];
+                });
+            }];
         });
+
     }];
 }
-
 @end
 
 @implementation ForcedViewController
 
-- (NSUInteger) supportedInterfaceOrientations
+- (UIInterfaceOrientationMask) supportedInterfaceOrientations
 {
     if ([self.calledWith rangeOfString:@"portrait"].location != NSNotFound) {
         return UIInterfaceOrientationMaskPortrait;

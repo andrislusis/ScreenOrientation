@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
 #import "YoikScreenOrientation.h"
+#import "YoikScreenOrientation+CDVViewController.h"
 
 @implementation YoikScreenOrientation
 
@@ -75,7 +76,7 @@ SOFTWARE.
             if ([result count] == 0) {
                 [result addObject:[NSNumber numberWithInt:UIInterfaceOrientationPortrait]];
             }
-
+        // [[UIDevice currentDevice] setValue:value forKey:@"orientation"];
         if (self.viewController != nil )  ((CDVViewController*)self.viewController).supportedOrientations = result;
 
         // we send the result prior to the view controller presentation so that the JS side
